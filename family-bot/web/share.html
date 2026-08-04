@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Список подарков</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><text y='52' font-size='52'>🎁</text></svg>">
+  <meta name="robots" content="noindex">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="public">
+  <header class="public-top">
+    <div class="emoji" id="emoji">🎁</div>
+    <h1 id="title">Загружаю…</h1>
+    <p id="subtitle"></p>
+  </header>
+
+  <div class="wrap">
+    <main id="items"></main>
+    <div class="foot" id="foot">
+      Отмечайте «Забронировать», чтобы никто не подарил одно и то же дважды.
+    </div>
+  </div>
+
+  <div id="modal-root"></div>
+  <script src="/static/share.js"></script>
+</body>
+</html>

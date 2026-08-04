@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Наш дом</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><text y='52' font-size='52'>🏡</text></svg>">
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <h1 id="header-title">Наш дом</h1>
+    <div class="sub" id="header-sub">загружаю…</div>
+  </header>
+
+  <main id="view">
+    <div class="spinner">Загружаю…</div>
+  </main>
+
+  <button class="fab" id="fab" hidden>+</button>
+
+  <nav class="tabbar">
+    <button data-tab="shopping" class="active"><span class="icon">🛍</span>Покупки</button>
+    <button data-tab="wishlist"><span class="icon">🎁</span>Вишлисты</button>
+    <button data-tab="expenses"><span class="icon">💸</span>Траты</button>
+    <button data-tab="settings"><span class="icon">⚙️</span>Ещё</button>
+  </nav>
+
+  <div id="modal-root"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
