@@ -34,7 +34,25 @@ schema.org), достаёт название, цену, картинку и ма
 **👫 Общее пространство.** `/invite` даёт ссылку — по ней вторая половинка
 попадает в ту же семью, и списки с тратами становятся общими.
 
-## Быстрый старт
+## Быстрый старт: одна команда
+
+```bash
+git clone -b claude/telegram-shopping-expenses-bot-7rboan https://github.com/LyubovYarovaya/Markdown-Cheatsheet.git
+cd Markdown-Cheatsheet/family-bot
+./start.sh                 # Windows: powershell -ExecutionPolicy Bypass -File .\start.ps1
+```
+
+Скрипт сам создаст виртуальное окружение, поставит зависимости, спросит токен
+бота, поднимет https-туннель через `cloudflared` и подставит его адрес в `.env`.
+Дальше — `/start` в боте. Остановить — `Ctrl+C`.
+
+Если `cloudflared` не установлен, скрипт всё равно запустит бота (ссылки на
+товары и траты работают), но мини-приложение и публичные ссылки будут
+недоступны — им нужен https-адрес.
+
+Запустить без туннеля намеренно: `SKIP_TUNNEL=1 ./start.sh`.
+
+## Ручная установка
 
 1. **Создай бота** у [@BotFather](https://t.me/BotFather) → `/newbot` → сохрани токен.
 

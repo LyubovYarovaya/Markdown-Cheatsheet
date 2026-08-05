@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,6 +19,14 @@ class Settings(BaseSettings):
     port: int = 8080
 
     dev_tg_id: int | None = None
+
+    @field_validator("dev_tg_id", mode="before")
+    @classmethod
+    def _blank_is_none(cls, value):
+        """Пустая строка в .env (DEV_TG_ID=) значит «выключено», а не ошибку."""
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     @property
     def base_url(self) -> str:

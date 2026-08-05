@@ -30,7 +30,18 @@ async def _start_bot(app: FastAPI) -> None:
         return
 
     bot = get_bot()
-    me = await bot.get_me()
+    try:
+        me = await bot.get_me()
+    except Exception as error:
+        # Неверный токен или нет интернета — не роняем весь процесс: веб-часть
+        # пусть живёт, а человеку показываем внятную причину вместо трейсбека.
+        log.error(
+            "Не получилось подключиться к Telegram: %s\n"
+            "Проверь BOT_TOKEN в .env и интернет, потом перезапусти. "
+            "Веб-приложение пока работает, бот — нет.",
+            error,
+        )
+        return
     runtime.bot_username = me.username
     await bot.set_my_commands(COMMANDS)
     log.info("Бот @%s готов, режим %s", me.username, settings.bot_mode)
