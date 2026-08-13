@@ -165,6 +165,54 @@ async def open_app(message: Message) -> None:
     await message.answer("Приложение здесь 👇", reply_markup=kb.open_app_button())
 
 
+@router.message(Command("diag"))
+async def diagnostics(message: Message) -> None:
+    """Почему не открывается приложение — проверка адреса прямо из чата."""
+    from .. import runtime
+    from ..services.diagnostics import probe
+
+    url = settings.base_url
+    lines = ["<b>🩺 Проверка приложения</b>", "", f"Адрес: <code>{escape(url)}</code>"]
+
+    if not url.startswith("https://"):
+        lines += [
+            "",
+            "❌ <b>Адрес не https.</b> Telegram открывает мини-приложение только по https.",
+            "Запусти туннель (<code>./start.sh</code>) — он подставит правильный адрес.",
+        ]
+        await message.answer("\n".join(lines))
+        return
+
+    checking = await message.answer("Проверяю адрес снаружи… ⏳")
+    ok, reason = await probe(f"{url}/healthz")
+    app_ok, app_reason = (await probe(f"{url}/app/")) if ok else (False, "")
+    await checking.delete()
+
+    lines.append(f"Бот: @{escape(runtime.bot_username or '—')}")
+    lines.append("")
+    lines.append(f"{'✅' if ok else '❌'} Сервер снаружи: {escape(reason)}")
+    if ok:
+        lines.append(f"{'✅' if app_ok else '❌'} Страница приложения: {escape(app_reason)}")
+
+    if ok and app_ok:
+        lines += [
+            "",
+            "Всё живо. Если кнопка из старого сообщения не открывается — в ней зашит "
+            "прежний адрес. Нажимай кнопку ниже или ту, что внизу экрана.",
+        ]
+    elif not ok and "не резолвится" in reason:
+        lines += [
+            "",
+            "<b>Туннель не работает.</b> В терминале, где запущен <code>./start.sh</code>, "
+            "должна быть строка «✓ Публичный адрес». Если её нет или окно закрыто — "
+            "запусти скрипт заново.",
+        ]
+    else:
+        lines += ["", "<b>Туннель есть, приложение за ним не отвечает.</b> Перезапусти <code>./start.sh</code>."]
+
+    await message.answer("\n".join(lines), reply_markup=kb.open_app_button())
+
+
 @router.message(Command("invite"))
 async def invite(message: Message) -> None:
     async with SessionLocal() as session:

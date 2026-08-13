@@ -19,6 +19,7 @@ COMMANDS = [
     BotCommand(command="expenses", description="Последние траты"),
     BotCommand(command="stats", description="Сводка за месяц"),
     BotCommand(command="invite", description="Пригласить в семью"),
+    BotCommand(command="diag", description="Почему не открывается приложение"),
     BotCommand(command="help", description="Справка"),
 ]
 
