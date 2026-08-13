@@ -5,6 +5,7 @@ import contextlib
 import logging
 from pathlib import Path
 
+from aiogram.exceptions import TelegramConflictError
 from aiogram.types import Update
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -59,8 +60,40 @@ async def _start_bot(app: FastAPI) -> None:
         )
     else:
         await bot.delete_webhook(drop_pending_updates=True)
-        dispatcher = get_dispatcher()
-        app.state.polling_task = asyncio.create_task(dispatcher.start_polling(bot))
+        app.state.polling_task = asyncio.create_task(_polling_supervisor(bot))
+
+
+async def _polling_supervisor(bot) -> None:
+    """Держит опрос Telegram живым и громко объясняет, если он падает.
+
+    Без этого упавший опрос выглядит для человека как «бот молчит»: веб-часть
+    работает, логи чистые, а сообщения остаются без ответа.
+    """
+    dispatcher = get_dispatcher()
+    while True:
+        try:
+            runtime.polling_ok = True
+            runtime.last_error = None
+            await dispatcher.start_polling(bot, handle_signals=False)
+            runtime.polling_ok = False
+            log.warning("Опрос Telegram остановился сам — перезапускаю через 5 секунд")
+        except asyncio.CancelledError:
+            runtime.polling_ok = False
+            raise
+        except TelegramConflictError:
+            runtime.polling_ok = False
+            runtime.last_error = "тот же бот запущен ещё где-то"
+            log.error(
+                "Этот бот уже запущен в другом окне (или на другом компьютере) с тем же "
+                "токеном. Пока так — сообщения будут теряться. Закрой лишний запуск."
+            )
+            await asyncio.sleep(30)
+            continue
+        except Exception as error:
+            runtime.polling_ok = False
+            runtime.last_error = f"{type(error).__name__}: {error}"
+            log.exception("Опрос Telegram упал — перезапускаю через 5 секунд")
+        await asyncio.sleep(5)
 
 
 @contextlib.asynccontextmanager
@@ -100,7 +133,12 @@ async def telegram_webhook(
 
 @app.get("/healthz")
 async def healthz() -> dict:
-    return {"ok": True, "bot": runtime.bot_username}
+    return {
+        "ok": True,
+        "bot": runtime.bot_username,
+        "polling": runtime.polling_ok,
+        "error": runtime.last_error,
+    }
 
 
 @app.get("/s/{token}")

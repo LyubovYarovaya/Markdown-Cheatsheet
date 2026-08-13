@@ -111,13 +111,32 @@ def main() -> int:
         print(f"  {DIM}NGROK_DOMAIN = {env['NGROK_DOMAIN']}{OFF}")
 
     # 2. Приложение на своей машине
-    status, _ = fetch(f"http://localhost:{port}/healthz")
+    status, body = fetch(f"http://localhost:{port}/healthz")
     if status == 200:
         ok(f"Приложение работает на localhost:{port}")
+        try:
+            health = json.loads(body)
+        except ValueError:
+            health = {}
+        if health.get("bot") and health.get("polling"):
+            ok(f"Бот @{health['bot']} слушает сообщения")
+        elif health.get("bot"):
+            bad(
+                "Бот подключён, но не слушает сообщения"
+                + (f" ({health['error']})" if health.get("error") else ""),
+                "Чаще всего это второй запуск с тем же токеном: закрой лишнее окно "
+                "с ./start.sh. Подробности — в терминале, где запущен скрипт.",
+            )
+        else:
+            bad(
+                "Приложение работает, но бот к Telegram не подключился",
+                "Смотри терминал: скорее всего неверный BOT_TOKEN или нет интернета.",
+            )
     else:
         bad(
             f"На localhost:{port} никто не отвечает",
-            "Приложение не запущено. Запусти ./start.sh и оставь окно терминала открытым.",
+            "Приложение не запущено — поэтому бот молчит на все команды. "
+            "Запусти ./start.sh и НЕ закрывай окно терминала: пока оно открыто, бот жив.",
         )
 
     # 3. Туннель

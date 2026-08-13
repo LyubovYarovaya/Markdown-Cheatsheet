@@ -138,9 +138,17 @@ try {
 
     Write-Host ''
     Ok 'Запускаю. Открой бота в Telegram и нажми /start'
+    Warn 'Пока это окно открыто — бот работает. Закроешь окно — бот замолчит.'
     Write-Host 'Остановить — Ctrl+C' -ForegroundColor DarkGray
     Write-Host ''
-    & $venvPy -m app.main
+
+    # Перезапускаем при падении: разрыв сети не должен оставлять бота молчащим.
+    while ($true) {
+        & $venvPy -m app.main
+        if ($LASTEXITCODE -eq 0) { break }
+        Warn "Приложение остановилось (код $LASTEXITCODE). Перезапускаю через 3 секунды..."
+        Start-Sleep -Seconds 3
+    }
 }
 finally {
     if ($tunnel -and -not $tunnel.HasExited) { Stop-Process -Id $tunnel.Id -Force -ErrorAction SilentlyContinue }
