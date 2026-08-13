@@ -36,6 +36,26 @@ async def test_item_lands_in_guessed_category(client):
     assert (await client.delete(f"/api/items/{created['id']}")).json() == {"ok": True}
 
 
+async def test_same_link_is_not_added_twice(client):
+    url = "https://shop.invalid/p/koljaska-anex?utm_source=telegram"
+    first = (await client.post("/api/items", json={"url": url})).json()
+    assert first["duplicate"] is False
+
+    # Та же ссылка, но с www, слэшем и без utm — считаем тем же товаром.
+    again = (await client.post("/api/items", json={"url": "https://www.shop.invalid/p/koljaska-anex/"})).json()
+    assert again["duplicate"] is True
+    assert again["id"] == first["id"]
+    assert again["list_title"]
+
+    # Осознанная копия всё-таки создаётся.
+    forced = (await client.post("/api/items", json={"url": url, "force": True})).json()
+    assert forced["duplicate"] is False
+    assert forced["id"] != first["id"]
+
+    other = (await client.post("/api/items", json={"url": "https://shop.invalid/p/drugoe"})).json()
+    assert other["duplicate"] is False
+
+
 async def test_expenses_and_summary(client):
     categories = (await client.get("/api/expense-categories")).json()
     car = next(row for row in categories if row["slug"] == "car")

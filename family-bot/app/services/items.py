@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from ..models import Item, ItemList, User
 from . import categorizer
-from .link_parser import LinkPreview, fetch_preview, shop_name
+from .link_parser import LinkPreview, canonical_url, fetch_preview, shop_name
+
+
+@dataclass(slots=True)
+class AddResult:
+    item: Item
+    list: ItemList
+    confident: bool
+    duplicate: bool = False
 
 
 async def get_list(session: AsyncSession, household_id: int, list_id: int) -> ItemList | None:
@@ -62,6 +72,26 @@ async def pick_list_for(
     return await fallback_list(session, household_id), False
 
 
+async def find_by_url(session: AsyncSession, household_id: int, url: str) -> Item | None:
+    """Ищет уже сохранённый товар с такой же ссылкой в пределах семьи."""
+    if not url:
+        return None
+    key = canonical_url(url)
+    if not key:
+        return None
+
+    rows = await session.scalars(
+        select(Item)
+        .options(selectinload(Item.created_by), selectinload(Item.list))
+        .join(ItemList)
+        .where(ItemList.household_id == household_id, Item.url.is_not(None))
+    )
+    for row in rows:
+        if canonical_url(row.url) == key:
+            return row
+    return None
+
+
 async def add_item(
     session: AsyncSession,
     user: User,
@@ -73,16 +103,30 @@ async def add_item(
     currency: str | None = None,
     note: str | None = None,
     priority: int = 0,
-) -> tuple[Item, ItemList, bool]:
+    allow_duplicate: bool = False,
+) -> AddResult:
     """Создаёт товар. Если передана ссылка — подтягивает данные со страницы.
 
-    Возвращает (товар, список, уверенность в автокатегории).
+    Если такая ссылка уже сохранена в семье, второй раз не добавляет:
+    возвращает найденный товар с пометкой duplicate.
     """
     preview = LinkPreview(url=url or "", title=title)
     if url:
+        # Сначала дешёвая проверка по самой ссылке — часто дубль виден сразу.
+        if not allow_duplicate:
+            existing = await find_by_url(session, user.household_id, url)
+            if existing is not None:
+                return AddResult(existing, existing.list, True, duplicate=True)
+
         preview = await fetch_preview(url)
         if title:
             preview.title = title
+
+        # После редиректов ссылка могла превратиться в уже известную.
+        if not allow_duplicate and preview.url and preview.url != url:
+            existing = await find_by_url(session, user.household_id, preview.url)
+            if existing is not None:
+                return AddResult(existing, existing.list, True, duplicate=True)
 
     confident = True
     target: ItemList | None = None
@@ -118,4 +162,4 @@ async def add_item(
     item = await session.scalar(
         select(Item).options(selectinload(Item.created_by)).where(Item.id == item.id)
     )
-    return item, target, confident
+    return AddResult(item, target, confident, duplicate=False)

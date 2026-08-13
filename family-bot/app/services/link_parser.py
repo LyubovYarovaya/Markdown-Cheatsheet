@@ -70,6 +70,20 @@ def clean_url(url: str) -> str:
     return urlunparse(parts._replace(query=urlencode(query), fragment=""))
 
 
+def canonical_url(url: str) -> str:
+    """Ключ для сравнения ссылок: один товар не должен попасть в список дважды.
+
+    Игнорирует http/https, www, регистр домена, хвостовой слэш и трекинговые
+    параметры — «одна и та же ссылка» глазами человека.
+    """
+    parts = urlparse(clean_url(url or ""))
+    host = (parts.hostname or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    path = parts.path.rstrip("/")
+    return f"{host}{path}?{parts.query}" if parts.query else f"{host}{path}"
+
+
 def shop_name(url: str) -> str:
     host = (urlparse(url).hostname or "").lower()
     return host[4:] if host.startswith("www.") else host

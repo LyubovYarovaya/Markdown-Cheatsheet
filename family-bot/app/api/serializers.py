@@ -3,6 +3,7 @@ from __future__ import annotations
 from ..config import settings
 from ..models import Expense, Item, ItemList, User
 from ..schemas import ExpenseOut, ItemOut, ListOut, PublicItemOut, UserOut
+from ..services.recurring import due_state
 
 
 def user_out(user: User) -> UserOut:
@@ -33,7 +34,13 @@ def list_out(
     )
 
 
-def item_out(item: Item, viewer: User | None = None, hide_reservation: bool = False) -> ItemOut:
+def item_out(
+    item: Item,
+    viewer: User | None = None,
+    hide_reservation: bool = False,
+    duplicate: bool = False,
+    list_title: str | None = None,
+) -> ItemOut:
     reserved = bool(item.reserved_by)
     return ItemOut(
         id=item.id,
@@ -51,6 +58,8 @@ def item_out(item: Item, viewer: User | None = None, hide_reservation: bool = Fa
         created_at=item.created_at,
         reserved_by=None if hide_reservation else item.reserved_by,
         is_reserved=False if hide_reservation else reserved,
+        duplicate=duplicate,
+        list_title=list_title,
     )
 
 
@@ -73,6 +82,7 @@ def public_item_out(item: Item, secret: str | None, hide_reservation: bool) -> P
 
 
 def expense_out(expense: Expense) -> ExpenseOut:
+    due_in_days, due_caption = due_state(expense)
     return ExpenseOut(
         id=expense.id,
         title=expense.title,
@@ -86,4 +96,7 @@ def expense_out(expense: Expense) -> ExpenseOut:
         category_title=expense.category.title if expense.category else None,
         category_emoji=expense.category.emoji if expense.category else None,
         created_by=expense.created_by.display_name if expense.created_by else None,
+        next_due_on=expense.next_due_on,
+        due_in_days=due_in_days,
+        due_caption=due_caption,
     )

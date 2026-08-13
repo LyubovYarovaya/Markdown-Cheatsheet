@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8080
 
+    # Напоминания о регулярных платежах
+    timezone: str = "Europe/Kyiv"
+    reminder_hour: int = 10  # во сколько по местному времени писать
+    remind_days_before: int = 2  # за сколько дней предупреждать
+
     dev_tg_id: int | None = None
 
     @field_validator("dev_tg_id", mode="before")

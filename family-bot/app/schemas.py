@@ -69,6 +69,9 @@ class ItemOut(BaseModel):
     created_at: dt.datetime | None = None
     reserved_by: str | None = None
     is_reserved: bool = False
+    # true, если такая ссылка уже была: сервер вернул найденный товар, а не новый
+    duplicate: bool = False
+    list_title: str | None = None
 
 
 class ItemCreate(BaseModel):
@@ -79,6 +82,7 @@ class ItemCreate(BaseModel):
     currency: str | None = None
     note: str | None = None
     priority: int = 0
+    force: bool = False  # добавить, даже если такая ссылка уже сохранена
 
 
 class ItemUpdate(BaseModel):
@@ -119,6 +123,9 @@ class ExpenseOut(BaseModel):
     category_title: str | None = None
     category_emoji: str | None = None
     created_by: str | None = None
+    next_due_on: dt.date | None = None
+    due_in_days: int | None = None
+    due_caption: str = ""
 
 
 class ExpenseCreate(BaseModel):
@@ -130,6 +137,7 @@ class ExpenseCreate(BaseModel):
     note: str | None = None
     category_id: int | None = None
     is_template: bool = False
+    next_due_on: dt.date | None = None
 
 
 class ExpenseUpdate(BaseModel):
@@ -140,6 +148,7 @@ class ExpenseUpdate(BaseModel):
     spent_on: dt.date | None = None
     note: str | None = None
     category_id: int | None = None
+    next_due_on: dt.date | None = None
 
 
 class SummaryBucket(BaseModel):

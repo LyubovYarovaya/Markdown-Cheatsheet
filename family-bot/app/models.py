@@ -172,6 +172,10 @@ class Expense(Base, TimestampMixin):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_template: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # Только для шаблонов: когда следующий платёж и когда мы о нём напоминали.
+    next_due_on: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
+    last_reminded_on: Mapped[dt.date | None] = mapped_column(Date, nullable=True)
+
     created_by_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

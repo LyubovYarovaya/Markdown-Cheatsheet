@@ -15,6 +15,7 @@ from .api.core import router as core_router
 from .api.expenses import router as expenses_router
 from .api.public import router as public_router
 from .bot import COMMANDS, get_bot, get_dispatcher
+from .bot.reminders import reminder_loop
 from .config import settings
 from .db import init_db
 
@@ -46,6 +47,8 @@ async def _start_bot(app: FastAPI) -> None:
     await bot.set_my_commands(COMMANDS)
     log.info("Бот @%s готов, режим %s", me.username, settings.bot_mode)
 
+    app.state.reminder_task = asyncio.create_task(reminder_loop(bot))
+
     if settings.bot_mode == "webhook":
         await bot.set_webhook(
             f"{settings.base_url}/telegram/webhook",
@@ -65,11 +68,12 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        task = getattr(app.state, "polling_task", None)
-        if task:
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
+        for name in ("polling_task", "reminder_task"):
+            task = getattr(app.state, name, None)
+            if task:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
         with contextlib.suppress(Exception):
             await get_bot().session.close()
 

@@ -224,7 +224,7 @@ async def create_item(
 ) -> ItemOut:
     if not payload.url and not payload.title:
         raise HTTPException(status_code=400, detail="Нужна ссылка или название")
-    item, _, _ = await items_service.add_item(
+    result = await items_service.add_item(
         session,
         user,
         url=payload.url,
@@ -234,8 +234,13 @@ async def create_item(
         currency=payload.currency,
         note=payload.note,
         priority=payload.priority,
+        allow_duplicate=payload.force,
     )
-    return item_out(item)
+    return item_out(
+        result.item,
+        duplicate=result.duplicate,
+        list_title=f"{result.list.emoji} {result.list.title}",
+    )
 
 
 @router.patch("/items/{item_id}", response_model=ItemOut)

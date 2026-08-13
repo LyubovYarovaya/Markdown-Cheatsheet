@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from app.services.categorizer import guess_category, guess_expense_category
-from app.services.link_parser import clean_url, extract_urls, parse_html
+from app.services.link_parser import canonical_url, clean_url, extract_urls, parse_html
 from app.services.quick_expense import parse_expense
 
 
@@ -35,6 +35,20 @@ def test_extract_and_clean_urls():
     urls = extract_urls(text)
     assert urls == ["https://shop.ua/item?utm_source=tg&id=5"]
     assert clean_url(urls[0]) == "https://shop.ua/item?id=5"
+
+
+def test_canonical_url_ignores_cosmetic_differences():
+    same = [
+        "https://shop.ua/p/koljaska-anex/",
+        "http://www.shop.ua/p/koljaska-anex",
+        "https://SHOP.ua/p/koljaska-anex?utm_source=telegram",
+        "https://shop.ua/p/koljaska-anex#reviews",
+    ]
+    keys = {canonical_url(url) for url in same}
+    assert len(keys) == 1
+
+    assert canonical_url("https://shop.ua/p/1") != canonical_url("https://shop.ua/p/2")
+    assert canonical_url("https://shop.ua/p?id=1") != canonical_url("https://shop.ua/p?id=2")
 
 
 def test_parse_html_reads_open_graph():

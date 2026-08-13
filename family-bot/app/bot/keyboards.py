@@ -41,6 +41,19 @@ def item_actions(item_id: int) -> InlineKeyboardMarkup:
     )
 
 
+def duplicate_actions(item_id: int) -> InlineKeyboardMarkup:
+    """Ссылка уже была: предлагаем открыть, перенести или всё-таки добавить копию."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="📂 Другая категория", callback_data=f"item:pick:{item_id}"),
+                InlineKeyboardButton(text="✅ Уже купили", callback_data=f"item:buy:{item_id}"),
+            ],
+            [InlineKeyboardButton(text="➕ Всё равно добавить копию", callback_data=f"item:again:{item_id}")],
+        ]
+    )
+
+
 def list_picker(item_id: int, lists: list[ItemList]) -> InlineKeyboardMarkup:
     buttons: list[list[InlineKeyboardButton]] = []
     row: list[InlineKeyboardButton] = []

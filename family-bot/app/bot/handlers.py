@@ -14,6 +14,7 @@ from ..config import settings
 from ..db import SessionLocal
 from ..models import PERIODS, Expense, ExpenseCategory, Household, Item, ItemList, User
 from ..services import items as items_service
+from ..services import recurring
 from ..services.link_parser import extract_urls
 from ..services.quick_expense import parse_expense
 from ..services.users import get_or_create_user, join_household
@@ -82,6 +83,23 @@ def item_card(item: Item, item_list: ItemList) -> str:
         lines.append(f"🏬 {escape(item.shop)}")
     if item.url:
         lines.append(f'<a href="{escape(item.url)}">Ссылка на товар</a>')
+    return "\n".join(lines)
+
+
+def duplicate_card(item: Item, item_list: ItemList) -> str:
+    """Сообщение, когда такую ссылку уже присылали раньше."""
+    who = item.created_by.display_name if item.created_by else None
+    when = item.created_at.strftime("%d.%m.%Y") if item.created_at else None
+    added = " · ".join(part for part in (who, when) if part)
+
+    lines = [f"🔁 Это уже в списке <b>{escape(item_list.emoji)} {escape(item_list.title)}</b>", ""]
+    lines.append(f"<b>{escape(item.title)}</b>")
+    if item.price:
+        lines.append(f"💰 {money(item.price, item.currency or settings.default_currency)}")
+    if added:
+        lines.append(f"➕ добавил(а) {escape(added)}")
+    if item.status == "bought":
+        lines.append("✅ уже отмечено как купленное")
     return "\n".join(lines)
 
 
@@ -339,16 +357,23 @@ async def handle_link(message: Message) -> None:
         async with SessionLocal() as session:
             user = await resolve_user(session, message)
             for url in urls[:5]:
-                item, item_list, confident = await items_service.add_item(
-                    session, user, url=url, note=note
-                )
-                text = item_card(item, item_list)
-                if not confident:
+                result = await items_service.add_item(session, user, url=url, note=note)
+
+                if result.duplicate:
+                    await message.answer(
+                        duplicate_card(result.item, result.list),
+                        reply_markup=kb.duplicate_actions(result.item.id),
+                        disable_web_page_preview=True,
+                    )
+                    continue
+
+                text = item_card(result.item, result.list)
+                if not result.confident:
                     text += "\n\n<i>Категорию выбрала наугад — поправь, если что.</i>"
                 await message.answer(
                     text,
-                    reply_markup=kb.item_actions(item.id),
-                    disable_web_page_preview=not item.image_url,
+                    reply_markup=kb.item_actions(result.item.id),
+                    disable_web_page_preview=not result.item.image_url,
                 )
     finally:
         await placeholder.delete()
@@ -422,6 +447,27 @@ async def pick_category(callback: CallbackQuery) -> None:
         )
     await callback.message.edit_reply_markup(reply_markup=kb.list_picker(item_id, lists))
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("item:again:"))
+async def add_duplicate_anyway(callback: CallbackQuery) -> None:
+    """«Всё равно добавить копию» — берём ссылку у найденного товара."""
+    item_id = int(callback.data.split(":")[2])
+    async with SessionLocal() as session:
+        user = await resolve_user(session, callback)
+        existing = await _load_item_for(session, user, item_id)
+        if existing is None or not existing.url:
+            await callback.answer("Не нашла ссылку", show_alert=True)
+            return
+        result = await items_service.add_item(
+            session, user, url=existing.url, allow_duplicate=True
+        )
+        text = item_card(result.item, result.list)
+
+    await callback.message.answer(
+        text, reply_markup=kb.item_actions(result.item.id), disable_web_page_preview=True
+    )
+    await callback.answer("Добавила копию")
 
 
 @router.callback_query(F.data.startswith("item:back:"))
@@ -559,6 +605,45 @@ async def set_expense_period(callback: CallbackQuery) -> None:
         text = expense_card(expense)
     await callback.message.edit_text(text, reply_markup=kb.expense_actions(int(raw_expense)))
     await callback.answer(PERIODS.get(period, "Готово"))
+
+
+@router.callback_query(F.data.startswith("exp:paid:"))
+async def confirm_payment(callback: CallbackQuery) -> None:
+    """Кнопка под напоминанием: платёж сделан, записываем и двигаем срок."""
+    template_id = int(callback.data.split(":")[2])
+    async with SessionLocal() as session:
+        user = await resolve_user(session, callback)
+        template = await _load_expense_for(session, user, template_id)
+        if template is None or not template.is_template:
+            await callback.answer("Не нашла платёж", show_alert=True)
+            return
+        fact = await recurring.pay_template(session, template, user=user)
+        fact.category = template.category
+        text = expense_card(fact)
+        next_due = template.next_due_on
+
+    if next_due:
+        text += f"\n\n⏭ Следующий: {next_due.strftime('%d.%m.%Y')}"
+    await callback.message.edit_text(text)
+    await callback.answer("Записала ✅")
+
+
+@router.callback_query(F.data.startswith("exp:skip:"))
+async def skip_payment(callback: CallbackQuery) -> None:
+    template_id = int(callback.data.split(":")[2])
+    async with SessionLocal() as session:
+        user = await resolve_user(session, callback)
+        template = await _load_expense_for(session, user, template_id)
+        if template is None or not template.is_template:
+            await callback.answer("Не нашла платёж", show_alert=True)
+            return
+        await recurring.skip_template(session, template)
+        next_due = template.next_due_on
+        title = template.title or (template.category.title if template.category else "Платёж")
+
+    when = f" Следующий: {next_due.strftime('%d.%m.%Y')}." if next_due else ""
+    await callback.message.edit_text(f"⏭ Пропустила «{escape(title)}».{when}")
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("exp:del:"))

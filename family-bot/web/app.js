@@ -226,7 +226,9 @@ function renderExpensesView() {
     <div class="row">
       <div class="label"><span>${esc(template.category_emoji || '🔁')}</span><span>
         <div>${esc(template.title || template.category_title || 'Платёж')}</div>
-        <div style="font-size:12px;color:var(--hint)">${esc(PERIODS[template.period])}</div>
+        <div style="font-size:12px;color:${template.due_in_days !== null && template.due_in_days < 0 ? 'var(--danger)' : 'var(--hint)'}">
+          ${esc(PERIODS[template.period])}${template.due_caption ? ' · ' + esc(template.due_caption) : ''}
+        </div>
       </span></div>
       <div class="value">${esc(money(template.amount, template.currency))}
         <button class="btn small" data-pay-template="${template.id}">Оплатить</button>
@@ -384,8 +386,14 @@ function openItemSheet(item = null) {
     if (item) {
       await api(`/api/items/${item.id}`, { method: 'PATCH', body: payload });
     } else {
-      toast('Читаю страницу…');
-      await api('/api/items', { method: 'POST', body: payload });
+      if (payload.url) toast('Читаю страницу…');
+      const created = await api('/api/items', { method: 'POST', body: payload });
+      if (created.duplicate) {
+        // Такая ссылка уже есть — открываем тот список, где она лежит.
+        const target = state.lists.find((l) => l.id === created.list_id);
+        if (target) state.active[target.kind] = target.id;
+        toast(`Это уже есть: ${created.list_title || 'в другом списке'}`);
+      }
     }
     await refresh();
   });
@@ -414,8 +422,8 @@ function openExpenseSheet(expense = null, { template = false } = {}) {
       <select name="category_id"><option value="">Без категории</option>${options}</select></label>
     <div class="grid-2">
       <label class="field"><span>Периодичность</span><select name="period">${periods}</select></label>
-      <label class="field"><span>Дата</span>
-        <input name="spent_on" type="date" value="${expense?.spent_on || today}"></label>
+      <label class="field"><span>${isTemplate ? 'Следующий платёж' : 'Дата'}</span>
+        <input name="spent_on" type="date" value="${(isTemplate ? expense?.next_due_on : expense?.spent_on) || today}"></label>
     </div>
     ${expense ? `<button type="button" class="btn danger block" data-delete-expense="${expense.id}">Удалить</button>` : ''}
   `, async (data) => {
@@ -428,6 +436,7 @@ function openExpenseSheet(expense = null, { template = false } = {}) {
       category_id: data.category_id ? Number(data.category_id) : null,
     };
     if (!payload.amount || payload.amount <= 0) throw new Error('Сумма должна быть больше нуля');
+    if (isTemplate) payload.next_due_on = payload.spent_on;  // у шаблона дата = срок платежа
     if (expense) {
       await api(`/api/expenses/${expense.id}`, { method: 'PATCH', body: payload });
     } else {

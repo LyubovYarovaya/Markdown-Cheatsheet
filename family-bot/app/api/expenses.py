@@ -12,6 +12,7 @@ from ..auth import current_user
 from ..config import settings
 from ..db import get_session
 from ..models import PERIODS, Expense, ExpenseCategory, User
+from ..services import recurring
 from ..schemas import (
     ExpenseCategoryCreate,
     ExpenseCategoryOut,
@@ -133,7 +134,10 @@ async def get_expenses(
         .order_by(Expense.spent_on.desc(), Expense.id.desc())
         .limit(limit)
     )
-    if not templates:
+    if templates:
+        # Шаблоны интереснее в порядке ближайших платежей.
+        query = query.order_by(None).order_by(Expense.next_due_on, Expense.id)
+    else:
         if date_from is None or date_to is None:
             date_from, date_to = month_bounds()
         query = query.where(Expense.spent_on >= date_from, Expense.spent_on <= date_to)
@@ -173,6 +177,12 @@ async def create_expense(
         spent_on=payload.spent_on or dt.date.today(),
         note=payload.note,
         is_template=payload.is_template,
+        # У шаблона дата — это когда платить в следующий раз.
+        next_due_on=(
+            payload.next_due_on or payload.spent_on or dt.date.today()
+            if payload.is_template
+            else None
+        ),
         created_by_id=user.id,
     )
     session.add(expense)
@@ -220,20 +230,12 @@ async def pay_template(
 
     payload = payload or {}
     amount = payload.get("amount")
-    fact = Expense(
-        household_id=template.household_id,
-        category_id=template.category_id,
-        title=template.title,
-        amount=Decimal(str(amount)) if amount is not None else template.amount,
-        currency=template.currency,
-        period=template.period,
-        spent_on=dt.date.today(),
-        note=template.note,
-        is_template=False,
-        created_by_id=user.id,
+    fact = await recurring.pay_template(
+        session,
+        template,
+        user=user,
+        amount=Decimal(str(amount)) if amount is not None else None,
     )
-    session.add(fact)
-    await session.commit()
     return expense_out(await _load_expense(session, user, fact.id))
 
 
