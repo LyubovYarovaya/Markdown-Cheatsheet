@@ -184,6 +184,15 @@ class Expense(Base, TimestampMixin):
     created_by: Mapped[User | None] = relationship()
 
 
+class AppState(Base):
+    """Мелкие служебные значения между запусками (например, прошлый адрес)."""
+
+    __tablename__ = "app_state"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, default="")
+
+
 PERIODS = {
     "once": "Разовая",
     "monthly": "Ежемесячная",

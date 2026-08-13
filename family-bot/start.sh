@@ -99,8 +99,23 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+NGROK_DOMAIN="$(get_env NGROK_DOMAIN)"
+
 if [ "${SKIP_TUNNEL:-}" = "1" ]; then
   warn "Туннель пропущен (SKIP_TUNNEL=1) — мини-приложение и ссылки для гостей работать не будут"
+
+elif [ -n "$NGROK_DOMAIN" ]; then
+  # Постоянный адрес: кнопки и ссылки для гостей не протухают между запусками.
+  if command -v ngrok >/dev/null 2>&1; then
+    ngrok http --url="https://${NGROK_DOMAIN}" "$PORT" --log stdout >"$(mktemp)" 2>&1 &
+    TUNNEL_PID=$!
+    sleep 3
+    set_env PUBLIC_URL "https://${NGROK_DOMAIN}"
+    ok "Постоянный адрес: https://${NGROK_DOMAIN}"
+  else
+    warn "NGROK_DOMAIN задан, но ngrok не установлен — поставь ngrok или убери домен из .env"
+  fi
+
 elif command -v cloudflared >/dev/null 2>&1; then
   LOG="$(mktemp)"
   cloudflared tunnel --url "http://localhost:${PORT}" --no-autoupdate >"$LOG" 2>&1 &
@@ -119,8 +134,9 @@ elif command -v cloudflared >/dev/null 2>&1; then
   if [ -n "$URL" ]; then
     set_env PUBLIC_URL "$URL"
     ok "Публичный адрес: $URL"
-    warn "Этот адрес живёт только пока скрипт запущен. После перезапуска он сменится,"
-    warn "и ссылки на вишлисты, которые ты уже раздала, перестанут открываться."
+    warn "Этот адрес временный: после перезапуска он сменится, кнопки «Открыть приложение»"
+    warn "из старых сообщений и ссылки на вишлисты перестанут открываться."
+    warn "Постоянный адрес — через ngrok: см. NGROK_DOMAIN в .env и README."
   else
     warn "Туннель не поднялся — смотри $LOG. Бот заработает, мини-приложение — нет."
   fi

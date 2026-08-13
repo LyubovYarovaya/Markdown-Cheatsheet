@@ -15,6 +15,7 @@ from .api.core import router as core_router
 from .api.expenses import router as expenses_router
 from .api.public import router as public_router
 from .bot import COMMANDS, get_bot, get_dispatcher
+from .bot.announce import announce_new_address
 from .bot.reminders import reminder_loop
 from .config import settings
 from .db import init_db
@@ -47,6 +48,7 @@ async def _start_bot(app: FastAPI) -> None:
     await bot.set_my_commands(COMMANDS)
     log.info("Бот @%s готов, режим %s", me.username, settings.bot_mode)
 
+    await announce_new_address(bot)
     app.state.reminder_task = asyncio.create_task(reminder_loop(bot))
 
     if settings.bot_mode == "webhook":

@@ -85,8 +85,23 @@ if ([string]::IsNullOrWhiteSpace($port)) { $port = '8080' }
 
 $tunnel = $null
 try {
+    $ngrokDomain = Get-EnvValue 'NGROK_DOMAIN'
+
     if ($env:SKIP_TUNNEL -eq '1') {
         Warn 'Туннель пропущен (SKIP_TUNNEL=1) — мини-приложение и ссылки для гостей работать не будут'
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($ngrokDomain)) {
+        # Постоянный адрес: кнопки и ссылки для гостей не протухают между запусками.
+        if (Get-Command ngrok -ErrorAction SilentlyContinue) {
+            $tunnel = Start-Process ngrok `
+                -ArgumentList 'http', "--url=https://$ngrokDomain", $port `
+                -PassThru -WindowStyle Hidden
+            Start-Sleep -Seconds 3
+            Set-EnvValue 'PUBLIC_URL' "https://$ngrokDomain"
+            Ok "Постоянный адрес: https://$ngrokDomain"
+        } else {
+            Warn 'NGROK_DOMAIN задан, но ngrok не установлен — поставь ngrok или убери домен из .env'
+        }
     }
     elseif (Get-Command cloudflared -ErrorAction SilentlyContinue) {
         $log = Join-Path $env:TEMP 'cloudflared.log'
@@ -107,8 +122,9 @@ try {
         if ($url) {
             Set-EnvValue 'PUBLIC_URL' $url
             Ok "Публичный адрес: $url"
-            Warn 'Этот адрес живёт только пока скрипт запущен. После перезапуска он сменится,'
-            Warn 'и ссылки на вишлисты, которые ты уже раздала, перестанут открываться.'
+            Warn 'Этот адрес временный: после перезапуска он сменится, кнопки из старых'
+            Warn 'сообщений и ссылки на вишлисты перестанут открываться.'
+            Warn 'Постоянный адрес — через ngrok: см. NGROK_DOMAIN в .env и README.'
         } else {
             Warn "Туннель не поднялся — смотри $log. Бот заработает, мини-приложение — нет."
         }
