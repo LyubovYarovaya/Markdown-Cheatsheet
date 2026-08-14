@@ -1,0 +1,40 @@
+# Постоянный запуск на сервере: приложение + Caddy, который сам получает
+# и продлевает сертификат Let's Encrypt для твоего домена.
+#   docker compose -f deploy/docker-compose.prod.yml up -d --build
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8080
+      PUBLIC_URL: https://${DOMAIN}
+      DATABASE_URL: sqlite+aiosqlite:////data/family.db
+    volumes:
+      - family-data:/data
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      DOMAIN: ${DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  family-data:
+  caddy-data:
+  caddy-config:

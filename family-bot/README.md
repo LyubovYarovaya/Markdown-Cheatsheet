@@ -122,6 +122,29 @@ cd Markdown-Cheatsheet/family-bot
 `start.sh` увидит домен и поднимет туннель через ngrok. Адрес больше не
 меняется — ни кнопки, ни ссылки на вишлисты не протухают.
 
+## Чтобы работало без ноутбука
+
+На ноутбуке бот жив только пока открыт терминал. Если он нужен всегда — любой
+самый дешёвый сервер (Hetzner, DigitalOcean — от 4–5 $/мес) и один скрипт:
+
+```bash
+git clone -b claude/telegram-shopping-expenses-bot-7rboan https://github.com/LyubovYarovaya/Markdown-Cheatsheet.git
+cd Markdown-Cheatsheet/family-bot
+sudo ./deploy/vps-setup.sh
+```
+
+Скрипт поставит Docker, спросит домен и токен, поднимет приложение вместе с
+Caddy — тот сам получит и будет продлевать сертификат Let's Encrypt. Заодно
+проверит, что домен действительно ведёт на этот сервер: иначе сертификат не
+выпустится, а по логам это понять сложнее.
+
+Домен нужен свой — бесплатно берётся на [duckdns.org](https://duckdns.org)
+(например, `family-borets.duckdns.org`), A-запись направь на IP сервера.
+
+Что это даёт: бот отвечает круглосуточно, адрес не меняется никогда, ссылки на
+вишлисты живут вечно, база в отдельном томе переживает обновления. Обновить
+код потом: `git pull && docker compose -f deploy/docker-compose.prod.yml up -d --build`.
+
 ## Ручная установка
 
 1. **Создай бота** у [@BotFather](https://t.me/BotFather) → `/newbot` → сохрани токен.
